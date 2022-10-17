@@ -1,9 +1,14 @@
 package dev.raiven.survey.repository;
 
+import java.io.BufferedReader;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.lang.reflect.Field;
-import java.lang.reflect.RecordComponent;
+import java.lang.reflect.Type;
 import java.math.BigDecimal;
-import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -11,7 +16,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Properties;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -21,6 +25,16 @@ import org.springframework.expression.ExpressionParser;
 import org.springframework.expression.spel.standard.SpelExpressionParser;
 import org.springframework.expression.spel.support.StandardEvaluationContext;
 import org.springframework.stereotype.Repository;
+
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonDeserializationContext;
+import com.google.gson.JsonDeserializer;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonIOException;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonSyntaxException;
+import com.google.gson.stream.JsonReader;
 
 import dev.raiven.survey.model.Criteria;
 import dev.raiven.survey.model.MetricsCriteria;
@@ -32,15 +46,30 @@ import dev.raiven.survey.model.SurveyResponse;
 
 @Repository
 public class SurveyRepository {
+
     List<Survey> data = new ArrayList<>();
     
-    public SurveyRepository() {
-        data.add(new Survey(
-            "first_name", "last_name", 99, 0
-        ));
-        data.add(new Survey(
-            "first_name_2", "last_name", 100, 0
-        ));
+    public SurveyRepository() throws IOException {
+        //Read the JSON file
+        Survey targetObject = null;
+        try {
+            // JsonReader root = new JsonReader(new FileReader(getClass().ge("/static/survey_dataset.json")));
+            String contents = "";
+            try (InputStream inputStream = getClass().getResourceAsStream("/static/survey_dataset.json");
+                BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
+                contents = reader.lines()
+                .collect(Collectors.joining(System.lineSeparator()));
+            } 
+            //Get the content of the first map
+            // String json = "{\"root\": [{\"Timestamp\":\"4/24/2019 11:43:21\",\"How old are you?\":\"35-44\",\"What industry do you work in?\":\"Government\",\"Job title\":\"Talent Management Asst. Director\",\"What is your annual salary?\":\"75000\",\"Please indicate the currency\":\"USD\",\"Where are you located? (City/state/country)\":\"Nashville, TN\",\"How many years of post-college professional work experience do you have?\":\"11 - 20 years\",\"If your job title needs additional context, please clarify here:\":\"\",\"If \\\"Other,\\\" please indicate the currency here:\":\"\"}]}";
+            GsonBuilder gsonBldr = new GsonBuilder();
+            gsonBldr.registerTypeAdapter(data.getClass(), new SurveyDeserialization());
+            data.addAll(gsonBldr.create().fromJson(contents, data.getClass()));
+
+        } catch (JsonIOException | JsonSyntaxException | FileNotFoundException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        }
     }
 
     public Boolean compare(String s1, String s2) {
@@ -185,6 +214,30 @@ public class SurveyRepository {
         
 
         return new SurveyResponse(projectionResult, metricsData);
+    }
+
+    private class SurveyDeserialization implements JsonDeserializer<List<Survey>> {
+
+        @Override
+        public List<Survey> deserialize
+          (JsonElement jElement, Type typeOfT, JsonDeserializationContext context) {
+            JsonObject jObject = jElement.getAsJsonObject();
+            JsonArray jArray = jObject.get("root").getAsJsonArray();
+            List<Survey> result = new ArrayList<>();
+            for (int i = 0; i < jArray.size(); i++) {  
+                JsonObject elem = jArray.get(i).getAsJsonObject();
+                String salary = elem.get("What is your annual salary?").getAsString();
+                String industry = elem.get("What industry do you work in?").getAsString();
+                String title = elem.get("Job title").getAsString();
+                String currency = elem.get("Please indicate the currency").getAsString();
+                String location = elem.get("Where are you located? (City/state/country)").getAsString();
+
+                salary = salary.replaceAll(",", ""); //remove commas
+                result.add(new Survey(industry, title,  (int)Math.round(Double.parseDouble(salary)), currency, location));
+            }  
+            
+            return result;
+        }
     }
 }
 
