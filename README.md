@@ -53,3 +53,28 @@ Integer salary
 String currency
 String location
 ```
+
+# Response Schema
+```
+{
+  "surveyData": [ // depends on projectsions, if not defined follow survey schema
+    {
+      "industry": "media",
+      "title": "senior marketing manager",
+      "salary": 90000,
+      "currency": "USD",
+      "location": "Washington, DC"
+    }
+  ],
+  "MetricsData": {
+    "metricsName": "avg",
+    "value": "90000.0"
+  }
+}
+```
+
+# TODO not yet
+1. Unit Test
+2. Validation on Query param - Filter, Metrics, etc
+3. Cleanup or expect dirty value in json dataset
+4. Use all attribute, currently still missing few attribute (not consumed)
